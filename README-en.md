@@ -6,6 +6,7 @@
   [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]()
   [![Platform](https://img.shields.io/badge/platform-Linux-orange.svg)]()
   [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%20v2-green.svg)](https://tauri.app/)
+  [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
   
   <p><br><em><a href="README.md">🇧🇷 Leia em Português</a></em></p>
 </div>
