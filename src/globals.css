@@ -1,0 +1,142 @@
+/*
+ * File: globals.css
+ * Project: native-app-manager
+ * Created: 2026-03-22
+ * 
+ * Last Modified: Wed Mar 25 2026
+ * Modified By: Pedro Farias
+ * 
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* GNOME Adwaita Light Palette */
+    --background: 0 0% 98%; /* #fafafa */
+    --foreground: 0 0% 15%; /* #262626 */
+    
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
+    
+    --primary: 211 100% 42%; /* #0066cc - Adwaita Blue */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 0 0% 92%; /* #ebebeb */
+    --secondary-foreground: 0 0% 15%;
+    
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 45%;
+    
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 15%;
+    
+    --destructive: 350 75% 50%; /* #d62d4c */
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 211 100% 42%;
+    
+    --radius: 0.75rem; /* 12px - GNOME Standard */
+  }
+
+  .dark {
+    /* GNOME Adwaita Dark Palette */
+    --background: 0 0% 10%; /* #1a1a1a - Deep Black */
+    --foreground: 0 0% 95%; /* #f2f2f2 */
+    
+    --card: 0 0% 13%; /* #212121 - Boxed list item */
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 0 0% 13%;
+    --popover-foreground: 0 0% 95%;
+    
+    --primary: 211 100% 60%; /* #3584e4 - Adwaita Dark Blue */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 0 0% 22%; /* #383838 */
+    --secondary-foreground: 0 0% 95%;
+    
+    --muted: 0 0% 22%;
+    --muted-foreground: 0 0% 65%;
+    
+    --accent: 0 0% 22%;
+    --accent-foreground: 0 0% 95%;
+    
+    --destructive: 350 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 0 0% 25%;
+    --input: 0 0% 25%;
+    --ring: 211 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: "Inter", "Cantarell", system-ui, -apple-system, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  /* Allow selection only inside inputs and textareas */
+  input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+}
+
+/* GNOME HeaderBar Style */
+.header-bar {
+  @apply h-14 flex items-center justify-between px-6 bg-background sticky top-0 z-50;
+}
+
+.boxed-list {
+  @apply rounded-2xl bg-card overflow-hidden divide-y divide-border/40 border border-border shadow-md dark:shadow-2xl dark:border-white/5 dark:divide-white/5;
+}
+
+.boxed-list-item {
+  @apply flex items-center justify-between p-4 bg-transparent transition-all hover:bg-muted/50 cursor-pointer active:scale-[0.99];
+}
+
+.search-pill {
+  @apply flex items-center gap-3 bg-card px-4 h-11 rounded-xl border border-border shadow-sm focus-within:ring-1 focus-within:ring-primary/40 focus-within:border-primary/40 transition-all dark:border-white/5 dark:shadow-md;
+}
+
+/* Custom Scrollbar - Adwaita Style */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full border-2 border-solid border-transparent bg-clip-padding;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Smooth transitions for a native feel */
+.transition-all {
+  transition-duration: 250ms;
+}
+
+/* Card Hover Adwaita style */
+.adwaita-card {
+  @apply rounded-xl border border-border/50 bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md;
+}
