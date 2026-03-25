@@ -25,12 +25,12 @@ jobs:
           APP_VERSION="$(jq -r '.version' src-tauri/tauri.conf.json)"
 
           if [ -z "$APP_VERSION" ] || [ "$APP_VERSION" = "null" ]; then
-            echo "Could not read app version from src-tauri/tauri.conf.json"
+            echo "Could not read app version"
             exit 1
           fi
 
           if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match app version ($APP_VERSION)."
+            echo "Tag version ($TAG_VERSION) != app version ($APP_VERSION)"
             exit 1
           fi
 
@@ -53,17 +53,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev pkg-config fakeroot rpm
+            librsvg2-dev patchelf libssl-dev pkg-config fakeroot rpm jq
 
       - name: Install frontend dependencies
         run: pnpm install
+
+      - name: Build raw binary
+        run: |
+          cd src-tauri
+          cargo build --release
 
       - name: Build and Package Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Arch Linux package is built in a dedicated step below (custom PKGBUILD + makepkg).
           args: --bundles appimage,deb,rpm
           tagName: ${{ github.ref_name }}
           releaseName: "Native App Manager ${{ github.ref_name }}"
@@ -77,7 +81,16 @@ jobs:
         run: |
           mkdir -p dist-arch
 
-          ARCH_DEPENDS=('cairo' 'gdk-pixbuf2' 'gcc-libs' 'glib2' 'gtk2' 'gtk3' 'hicolor-icon-theme' 'libsoup3' 'webkit2gtk-4.1')
+          BIN_PATH=$(find src-tauri/target/release -maxdepth 1 -type f -executable ! -name "*.d" | head -n 1)
+
+          if [ -z "$BIN_PATH" ]; then
+            echo "No binary found"
+            exit 1
+          fi
+
+          BIN_NAME=$(basename "$BIN_PATH")
+
+          ARCH_DEPENDS=('cairo' 'gdk-pixbuf2' 'glib2' 'gtk3' 'hicolor-icon-theme' 'libsoup3' 'webkit2gtk-4.1')
           declare -A ARCH_DEPENDS_SET
           for dep in "${ARCH_DEPENDS[@]}"; do
             ARCH_DEPENDS_SET["$dep"]=1
@@ -127,8 +140,7 @@ jobs:
               done
 
               if [ "$DEP_RESOLVED" = false ]; then
-                echo "Debian dependency '$dep' is not mapped for Arch Linux packaging."
-                echo "Add a mapping in .github/workflows/release.yml (map_deb_to_arch_dep)."
+                echo "Unmapped dependency: $dep"
                 exit 1
               fi
             done <<< "$DEB_DEPENDS"
@@ -140,20 +152,14 @@ jobs:
           PKG_VERSION="${PKG_VERSION#v}"
           PKG_VERSION="${PKG_VERSION//-/.}"
 
-          BIN_PATH="src-tauri/target/release/nativeappmanager"
-          if [ ! -f "$BIN_PATH" ]; then
-            echo "Expected binary not found at $BIN_PATH"
-            exit 1
-          fi
-
-          cp "$BIN_PATH" dist-arch/
+          cp "$BIN_PATH" dist-arch/$BIN_NAME
           cp src-tauri/icons/icon.png dist-arch/
 
-          cat > dist-arch/nativeappmanager.desktop << 'DESKTOP'
+          cat > dist-arch/${BIN_NAME}.desktop << DESKTOP
           [Desktop Entry]
           Name=Native App Manager
-          Exec=nativeappmanager
-          Icon=nativeappmanager
+          Exec=${BIN_NAME}
+          Icon=${BIN_NAME}
           Type=Application
           Categories=Development;
           DESKTOP
@@ -162,7 +168,7 @@ jobs:
           pkgname=nativeappmanager-bin
           pkgver=${PKG_VERSION}
           pkgrel=1
-          pkgdesc="A powerful, native, cross-platform GUI for managing Docker environments"
+          pkgdesc="A powerful, native GUI for managing Docker environments"
           arch=('x86_64')
           url="https://github.com/pedrofariasx/nativeappmanager"
           license=('MIT')
@@ -170,24 +176,18 @@ jobs:
           options=('!strip')
           provides=('nativeappmanager')
           conflicts=('nativeappmanager')
-          source=('nativeappmanager'
+          source=('${BIN_NAME}'
                   'icon.png'
-                  'nativeappmanager.desktop')
+                  '${BIN_NAME}.desktop')
           sha256sums=('SKIP' 'SKIP' 'SKIP')
 
           package() {
-            install -Dm755 "\${srcdir}/nativeappmanager" \
-              "\${pkgdir}/usr/bin/nativeappmanager"
-
-            install -Dm644 "\${srcdir}/icon.png" \
-              "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/nativeappmanager.png"
-
-            install -Dm644 "\${srcdir}/nativeappmanager.desktop" \
-              "\${pkgdir}/usr/share/applications/nativeappmanager.desktop"
+            install -Dm755 "\${srcdir}/${BIN_NAME}" "\${pkgdir}/usr/bin/${BIN_NAME}"
+            install -Dm644 "\${srcdir}/icon.png" "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png"
+            install -Dm644 "\${srcdir}/${BIN_NAME}.desktop" "\${pkgdir}/usr/share/applications/${BIN_NAME}.desktop"
           }
           EOF
 
-          # Using archlinux:latest instead of base-devel as it is more reliable on Docker Hub
           docker run --rm \
             -v "$PWD/dist-arch:/build" \
             -w /build \
@@ -210,11 +210,14 @@ jobs:
         run: |
           mkdir -p dist-targz
 
-          BIN_PATH="src-tauri/target/release/nativeappmanager"
-          if [ ! -f "$BIN_PATH" ]; then
-            echo "Expected binary not found at $BIN_PATH"
+          BIN_PATH=$(find src-tauri/target/release -maxdepth 1 -type f -executable ! -name "*.d" | head -n 1)
+
+          if [ -z "$BIN_PATH" ]; then
+            echo "No binary found"
             exit 1
           fi
+
+          BIN_NAME=$(basename "$BIN_PATH")
 
           PKG_VERSION="${{ github.ref_name }}"
           PKG_VERSION="${PKG_VERSION#v}"
@@ -223,6 +226,6 @@ jobs:
           cp LICENSE dist-targz/
 
           TAR_GZ="Native.App.Manager_${PKG_VERSION}_amd64.tar.gz"
-          tar -C dist-targz -czf "$TAR_GZ" nativeappmanager LICENSE
+          tar -C dist-targz -czf "$TAR_GZ" "$BIN_NAME" LICENSE
 
           gh release upload "${{ github.ref_name }}" "$TAR_GZ" --clobber
