@@ -25,12 +25,10 @@ jobs:
           APP_VERSION="$(jq -r '.version' src-tauri/tauri.conf.json)"
 
           if [ -z "$APP_VERSION" ] || [ "$APP_VERSION" = "null" ]; then
-            echo "Could not read app version"
             exit 1
           fi
 
           if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) != app version ($APP_VERSION)"
             exit 1
           fi
 
@@ -81,110 +79,45 @@ jobs:
         run: |
           mkdir -p dist-arch
 
-          BIN_PATH=$(find src-tauri/target/release -maxdepth 1 -type f -executable ! -name "*.d" | head -n 1)
+          BIN_PATH="src-tauri/target/release/nativeappmanager"
 
-          if [ -z "$BIN_PATH" ]; then
-            echo "No binary found"
+          if [ ! -f "$BIN_PATH" ]; then
+            echo "Binary not found"
             exit 1
           fi
 
-          BIN_NAME=$(basename "$BIN_PATH")
-
-          ARCH_DEPENDS=('cairo' 'gdk-pixbuf2' 'glib2' 'gtk3' 'hicolor-icon-theme' 'libsoup3' 'webkit2gtk-4.1')
-          declare -A ARCH_DEPENDS_SET
-          for dep in "${ARCH_DEPENDS[@]}"; do
-            ARCH_DEPENDS_SET["$dep"]=1
-          done
-
-          add_arch_dep() {
-            local dep="$1"
-            if [ -z "${ARCH_DEPENDS_SET[$dep]+x}" ]; then
-              ARCH_DEPENDS+=("$dep")
-              ARCH_DEPENDS_SET["$dep"]=1
-            fi
-          }
-
-          map_deb_to_arch_dep() {
-            case "$1" in
-              libgtk-3-0) echo "gtk3" ;;
-              libwebkit2gtk-4.1-0) echo "webkit2gtk-4.1" ;;
-              libglib2.0-0) echo "glib2" ;;
-              libgdk-pixbuf-2.0-0) echo "gdk-pixbuf2" ;;
-              libsoup-3.0-0) echo "libsoup3" ;;
-              librsvg2-2) echo "librsvg" ;;
-              libcairo2) echo "cairo" ;;
-              libgcc-s1|libgcc1) echo "gcc-libs" ;;
-              *) echo "" ;;
-            esac
-          }
-
-          DEB_DEPENDS=$(jq -r '.bundle.linux.deb.depends[]? // empty' src-tauri/tauri.conf.json)
-
-          if [ -n "$DEB_DEPENDS" ]; then
-            while IFS= read -r dep; do
-              [ -z "$dep" ] && continue
-              DEP_WITHOUT_VERSION=$(echo "$dep" | sed -E 's/\s*\([^)]*\)//g')
-              DEP_RESOLVED=false
-
-              IFS='|' read -ra DEP_CANDIDATES <<< "$DEP_WITHOUT_VERSION"
-              for DEP_CANDIDATE in "${DEP_CANDIDATES[@]}"; do
-                DEP_NAME=$(echo "$DEP_CANDIDATE" | xargs)
-                [ -z "$DEP_NAME" ] && continue
-
-                MAPPED_DEP=$(map_deb_to_arch_dep "$DEP_NAME")
-                if [ -n "$MAPPED_DEP" ]; then
-                  add_arch_dep "$MAPPED_DEP"
-                  DEP_RESOLVED=true
-                  break
-                fi
-              done
-
-              if [ "$DEP_RESOLVED" = false ]; then
-                echo "Unmapped dependency: $dep"
-                exit 1
-              fi
-            done <<< "$DEB_DEPENDS"
-          fi
-
-          ARCH_DEPENDS_PKGBUILD=$(printf "'%s'\n" "${ARCH_DEPENDS[@]}" | paste -sd' ' -)
-
-          PKG_VERSION="${{ github.ref_name }}"
-          PKG_VERSION="${PKG_VERSION#v}"
-          PKG_VERSION="${PKG_VERSION//-/.}"
-
-          cp "$BIN_PATH" dist-arch/$BIN_NAME
+          cp "$BIN_PATH" dist-arch/nativeappmanager
           cp src-tauri/icons/icon.png dist-arch/
 
-          cat > dist-arch/${BIN_NAME}.desktop << DESKTOP
+          cat > dist-arch/nativeappmanager.desktop << 'DESKTOP'
           [Desktop Entry]
           Name=Native App Manager
-          Exec=${BIN_NAME}
-          Icon=${BIN_NAME}
+          Exec=nativeappmanager
+          Icon=nativeappmanager
           Type=Application
           Categories=Development;
           DESKTOP
 
           cat > dist-arch/PKGBUILD << EOF
           pkgname=nativeappmanager-bin
-          pkgver=${PKG_VERSION}
+          pkgver=${{ github.ref_name }}
+          pkgver=\${pkgver#v}
           pkgrel=1
           pkgdesc="A powerful, native GUI for managing Docker environments"
           arch=('x86_64')
           url="https://github.com/pedrofariasx/nativeappmanager"
           license=('MIT')
-          depends=(${ARCH_DEPENDS_PKGBUILD})
+          depends=('gtk3' 'webkit2gtk-4.1')
           options=('!strip')
           provides=('nativeappmanager')
           conflicts=('nativeappmanager')
-          source=('${BIN_NAME}'
-                  'icon.png'
-                  '${BIN_NAME}.desktop')
+          source=('nativeappmanager' 'icon.png' 'nativeappmanager.desktop')
           sha256sums=('SKIP' 'SKIP' 'SKIP')
 
           package() {
-            install -Dm755 "\${srcdir}/${BIN_NAME}" "\${pkgdir}/usr/bin/${BIN_NAME}"
-            install -Dm644 "\${srcdir}/icon.png" "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png"
-            install -Dm644 "\${srcdir}/${BIN_NAME}.desktop" "\${pkgdir}/usr/share/applications/${BIN_NAME}.desktop"
+            install -Dm755 "\${srcdir}/nativeappmanager" "\${pkgdir}/usr/bin/nativeappmanager"
+            install -Dm644 "\${srcdir}/icon.png" "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/nativeappmanager.png"
+            install -Dm644 "\${srcdir}/nativeappmanager.desktop" "\${pkgdir}/usr/share/applications/nativeappmanager.desktop"
           }
           EOF
 
@@ -192,40 +125,10 @@ jobs:
             -v "$PWD/dist-arch:/build" \
             -w /build \
             archlinux:latest bash -c "
-              pacman-key --init && pacman-key --populate archlinux &&
-              pacman -Syu --noconfirm --needed base-devel namcap &&
+              pacman -Syu --noconfirm --needed base-devel &&
               useradd -m builduser &&
-              echo 'builduser ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers &&
               chown -R builduser:builduser /build &&
-              su - builduser -c 'cd /build && makepkg -s --noconfirm' &&
-              namcap *.pkg.tar.zst || true
+              su - builduser -c 'cd /build && makepkg -s --noconfirm'
             "
 
-          ARCH_PKG=$(ls dist-arch/*.pkg.tar.zst)
-          gh release upload "${{ github.ref_name }}" "$ARCH_PKG" --clobber
-
-      - name: Package tar.gz and Upload
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p dist-targz
-
-          BIN_PATH=$(find src-tauri/target/release -maxdepth 1 -type f -executable ! -name "*.d" | head -n 1)
-
-          if [ -z "$BIN_PATH" ]; then
-            echo "No binary found"
-            exit 1
-          fi
-
-          BIN_NAME=$(basename "$BIN_PATH")
-
-          PKG_VERSION="${{ github.ref_name }}"
-          PKG_VERSION="${PKG_VERSION#v}"
-
-          cp "$BIN_PATH" dist-targz/
-          cp LICENSE dist-targz/
-
-          TAR_GZ="Native.App.Manager_${PKG_VERSION}_amd64.tar.gz"
-          tar -C dist-targz -czf "$TAR_GZ" "$BIN_NAME" LICENSE
-
-          gh release upload "${{ github.ref_name }}" "$TAR_GZ" --clobber
+          gh release upload "${{ github.ref_name }}" dist-arch/*.pkg.tar.zst --clobber
