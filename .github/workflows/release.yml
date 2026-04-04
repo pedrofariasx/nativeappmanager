@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate tag version matches app version
         run: |
@@ -35,12 +35,12 @@ jobs:
           fi
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v5
         with:
           version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: "pnpm"
@@ -66,7 +66,7 @@ jobs:
           # Arch Linux package is built in a dedicated step below (custom PKGBUILD + makepkg).
           args: --bundles appimage,deb,rpm
           tagName: ${{ github.ref_name }}
-          releaseName: "Docker Native Manager ${{ github.ref_name }}"
+          releaseName: "Native App Manager ${{ github.ref_name }}"
           releaseBody: "See the assets to download this version and install."
           releaseDraft: false
           prerelease: false
@@ -77,7 +77,7 @@ jobs:
         run: |
           mkdir -p dist-arch
 
-          ARCH_DEPENDS=('cairo' 'gdk-pixbuf2' 'glib2' 'gtk3' 'hicolor-icon-theme' 'libsoup3' 'webkit2gtk-4.1')
+          ARCH_DEPENDS=('cairo' 'gdk-pixbuf2' 'glib2' 'glibc' 'gtk3' 'hicolor-icon-theme' 'libgcc' 'libsoup3' 'webkit2gtk-4.1')
           declare -A ARCH_DEPENDS_SET
           for dep in "${ARCH_DEPENDS[@]}"; do
             ARCH_DEPENDS_SET["$dep"]=1
@@ -139,7 +139,7 @@ jobs:
           PKG_VERSION="${PKG_VERSION#v}"
           PKG_VERSION="${PKG_VERSION//-/.}"
 
-          BIN_PATH="src-tauri/target/release/docker-native-manager"
+          BIN_PATH="src-tauri/target/release/native-app-manager"
           if [ ! -f "$BIN_PATH" ]; then
             echo "Expected binary not found at $BIN_PATH"
             exit 1
@@ -148,41 +148,41 @@ jobs:
           cp "$BIN_PATH" dist-arch/
           cp src-tauri/icons/icon.png dist-arch/
 
-          cat > dist-arch/docker-native-manager.desktop << 'DESKTOP'
+          cat > dist-arch/native-app-manager.desktop << 'DESKTOP'
           [Desktop Entry]
-          Name=Docker Native Manager
-          Exec=docker-native-manager
-          Icon=docker-native-manager
+          Name=Native App Manager
+          Exec=native-app-manager
+          Icon=native-app-manager
           Type=Application
           Categories=Development;
           DESKTOP
 
           cat > dist-arch/PKGBUILD << EOF
-          pkgname=dockernativemanager-bin
+          pkgname=nativeappmanager-bin
           pkgver=${PKG_VERSION}
           pkgrel=1
           pkgdesc="A powerful, native, cross-platform GUI for managing Docker environments"
           arch=('x86_64')
-          url="https://github.com/pedrofariasx/dockernativemanager"
+          url="https://github.com/pedrofariasx/nativeappmanager"
           license=('MIT')
           depends=(${ARCH_DEPENDS_PKGBUILD})
           options=('!strip')
-          provides=('docker-native-manager')
-          conflicts=('docker-native-manager')
-          source=('docker-native-manager'
+          provides=('native-app-manager')
+          conflicts=('native-app-manager')
+          source=('native-app-manager'
                   'icon.png'
-                  'docker-native-manager.desktop')
+                  'native-app-manager.desktop')
           sha256sums=('SKIP' 'SKIP' 'SKIP')
 
           package() {
-            install -Dm755 "\${srcdir}/docker-native-manager" \
-              "\${pkgdir}/usr/bin/docker-native-manager"
+            install -Dm755 "\${srcdir}/native-app-manager" \
+              "\${pkgdir}/usr/bin/native-app-manager"
 
             install -Dm644 "\${srcdir}/icon.png" \
-              "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/docker-native-manager.png"
+              "\${pkgdir}/usr/share/icons/hicolor/256x256/apps/native-app-manager.png"
 
-            install -Dm644 "\${srcdir}/docker-native-manager.desktop" \
-              "\${pkgdir}/usr/share/applications/docker-native-manager.desktop"
+            install -Dm644 "\${srcdir}/native-app-manager.desktop" \
+              "\${pkgdir}/usr/share/applications/native-app-manager.desktop"
           }
           EOF
 
@@ -209,7 +209,7 @@ jobs:
         run: |
           mkdir -p dist-targz
 
-          BIN_PATH="src-tauri/target/release/docker-native-manager"
+          BIN_PATH="src-tauri/target/release/native-app-manager"
           if [ ! -f "$BIN_PATH" ]; then
             echo "Expected binary not found at $BIN_PATH"
             exit 1
@@ -221,7 +221,7 @@ jobs:
           cp "$BIN_PATH" dist-targz/
           cp LICENSE dist-targz/
 
-          TAR_GZ="Docker.Native.Manager_${PKG_VERSION}_amd64.tar.gz"
-          tar -C dist-targz -czf "$TAR_GZ" docker-native-manager LICENSE
+          TAR_GZ="Native.App.Manager_${PKG_VERSION}_amd64.tar.gz"
+          tar -C dist-targz -czf "$TAR_GZ" native-app-manager LICENSE
 
           gh release upload "${{ github.ref_name }}" "$TAR_GZ" --clobber
